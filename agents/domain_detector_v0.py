@@ -84,23 +84,51 @@ def think(state: DomainDetectorState) -> DomainDetectorState:
     
     return new_state
 
-# Mock function for search_examples
-def search_examples(domain: str) -> List[str]:
-    """Mock function to simulate fetching jargon hints for a domain."""
-    # In a real implementation, this would call an external API or database
-    domain_examples = {
-        "Finance": ["ROI", "EBITDA", "liquidity", "amortization", "depreciation"],
-        "Retail": ["SKU", "inventory turnover", "markdown", "POS", "shrinkage"],
-        "E-commerce": ["conversion rate", "cart abandonment", "AOV", "CPC", "CTR"],
-        "Sales": ["pipeline", "lead generation", "churn rate", "upselling", "quota"],
-        "Marketing": ["CAC", "LTV", "engagement rate", "attribution", "funnel"],
-        "Business Intelligence": ["KPI", "dashboard", "data warehouse", "ETL", "OLAP"]
-    }
-    
-    # Default examples for domains not in our mock database
-    default_examples = ["metric", "indicator", "analysis", "benchmark", "trend"]
-    
-    return domain_examples.get(domain, default_examples)
+# -------------------------------------------------------------------
+# Dynamic LLM-powered jargon fetcher
+# -------------------------------------------------------------------
+def search_examples(domain: str, n_terms: int = 5, llm_model=llm) -> List[str]:
+    """
+    Query the LLM for ~n_terms canonical jargon / acronyms that typify `domain`.
+    Falls back to a small generic list if the model response is unusable.
+    """
+
+    # 1️⃣  Compose the prompt
+    prompt = PromptTemplate.from_template(
+        """
+        You are a senior specialist in {domain}.
+        List {n} widely-used jargon terms or acronyms **unique** to this field.
+        Return ONLY a valid JSON array of quoted strings, nothing else.
+        Example → ["term1","term2",...]
+        """
+    )
+
+    # 2️⃣  Run the model
+    raw_response: str = (
+        prompt
+        | llm_model
+        | StrOutputParser()         # gives us the raw string
+    ).invoke({"domain": domain, "n": n_terms})
+
+    # 3️⃣  Try strict JSON parsing first
+    try:
+        terms = json.loads(raw_response)
+        if isinstance(terms, list) and len(terms) >= 3:
+            return terms[:n_terms]
+    except Exception:
+        pass
+
+    # 4️⃣  Regex rescue for “almost JSON”
+    match = re.search(r"\[(.*?)\]", raw_response, re.S)
+    if match:
+        rough = re.split(r"[\"',\[\]]+", match.group(1))
+        cleaned = [t.strip() for t in rough if t.strip()]
+        if cleaned:
+            return cleaned[:n_terms]
+
+    # 5️⃣  Final generic fallback
+    return ["metric", "indicator", "analysis", "benchmark", "trend"][:n_terms]
+
 
 # Define the "Act" node - Get jargon terms
 def act(state: DomainDetectorState) -> DomainDetectorState:
@@ -240,7 +268,7 @@ def build_domain_detector_graph():
     return workflow.compile()
 
 # Function to run the domain detector
-def run_domain_detector(columns, column_types=None):
+def run_domain_detector_test1(columns, column_types=None):
     """
     Run the domain detector on the given columns.
     
@@ -277,5 +305,5 @@ if __name__ == "__main__":
         "Profit": "float"
     }
     
-    domains = run_domain_detector(columns, column_types)
+    domains = run_domain_detector_test1(columns, column_types)
     print(json.dumps(domains, indent=2))

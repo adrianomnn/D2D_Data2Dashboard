@@ -17,6 +17,8 @@ from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langgraph.graph import StateGraph, START, END
 
+MAX_CYCLES = 5
+
 # Custom JSON encoder for numpy types
 class NumpyEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -170,6 +172,7 @@ def _extract_content(response):
     return str(response)
 
 def domain_node(state):
+    print("domain_node", state)
     """
     Determine the dataset's domain label.
     Inputs  : state["profile"], state["memory"]
@@ -177,12 +180,12 @@ def domain_node(state):
     """
     # 0. Fast-path if the caller says our label is already final
     if state.get("domain_fixed"):
-        return {
+        return {**state, **{
             "profile"    : state["profile"],
             "domain_info": state.get("domain_info", {}),
             "memory"     : state.get("memory", "[]"),
             "iteration"  : state.get("iteration", 0)
-        }
+        }}
 
     # 1. Always supply memory as a JSON list string – even if empty
     memory_json = serialize_memory(state.get("memory"))
@@ -217,14 +220,15 @@ def domain_node(state):
         domain_info.setdefault(k, "")
 
     # 5. Return updated state
-    return {
+    return {**state, **{
         "profile"    : state["profile"],
         "domain_info": domain_info,
         "memory"     : state.get("memory", "[]"),
         "iteration"  : state.get("iteration", 0)
-    }
+    }}
 
 def concept_node(state):
+    print("concept_node", state)
     """
     Generate 4-6 core concepts for the detected domain.
     Inputs : profile, domain_info, memory
@@ -250,16 +254,17 @@ def concept_node(state):
         print("Warning: concept_node received invalid JSON; defaulting to []")
         concepts = []
 
-    return {
+    return {**state, **{
         "profile"    : state["profile"],
         "domain_info": state["domain_info"],
         "concepts"   : concepts,
         "memory"     : state.get("memory", "[]"),
         "iteration"  : state.get("iteration", 0)
-    }
+    }}
 
 
 def analysis_node(state):
+    print("analysis_node", state)
     """
     Produce descriptive / predictive / domain-related analysis paragraphs.
     Inputs : profile, domain_info, concepts, memory
@@ -293,17 +298,18 @@ def analysis_node(state):
             }
         }
 
-    return {
+    return {**state, **{
         "profile"    : state["profile"],
         "domain_info": state["domain_info"],
         "concepts"   : state["concepts"],
         "analysis"   : analysis,
         "memory"     : state.get("memory", "[]"),
         "iteration"  : state.get("iteration", 0)
-    }
+    }}
 
 
 def eval_node(state):
+    print("eval_node", state)
     """
     Evaluation node: Evaluates quality of domain, concepts, and analysis.
     Input: State with all previous outputs
@@ -362,6 +368,8 @@ def eval_node(state):
         }
     
     history = state.get("history", [])
+    print("history before append", history)
+
     history.append({
         "iteration": state.get("iteration", 0),
         "domain"   : json.loads(domain_info)["domain"] if isinstance(domain_info, str) else domain_info.get("domain", "Unknown"),
@@ -373,8 +381,9 @@ def eval_node(state):
         )
     })
     state["history"] = history
+    print("history", state["iteration"], "*****", state["history"])
     
-    return {
+    return {**state, **{
         "profile": state["profile"],
         "domain_info": state["domain_info"],
         "concepts": state["concepts"],
@@ -386,9 +395,10 @@ def eval_node(state):
         "memory": state.get("memory", "None"),
         "history": state["history"],
         "iteration": state.get("iteration", 0)
-    }
+    }}
 
 def reflect_node(state):
+    print("reflect_node", state)
     """
     Reflection node: Generates improvement suggestions based on evaluation.
     Input: State with evaluation results
@@ -428,7 +438,7 @@ def reflect_node(state):
     # Check domain and concept metrics
     if scores.get("correctness", 0) < 4:
         needs_reflection.append("domain")
-    if scores.get("relevance", 0) < 3 or scores.get("coverage", 0) < 3:
+    if scores.get("relevance", 0) < 4 or scores.get("coverage", 0) < 4:
         needs_reflection.append("concepts")
     if scores.get("insightfulness", 0) < 4 or scores.get("novelty", 0) < 4:
         needs_reflection.append("analysis")
@@ -479,7 +489,7 @@ def reflect_node(state):
     # Format memory for next iteration
     formatted_memory = json.dumps(combined_reflections)
     
-    return {
+    return {**state, **{
         "profile": state["profile"],
         "domain_info": state["domain_info"],
         "concepts": state["concepts"],
@@ -490,7 +500,7 @@ def reflect_node(state):
         "concepts_ok": state["concepts_ok"],
         "memory": formatted_memory,
         "iteration": iteration
-    }
+    }}
 
 ############################################################
 # 4. Build state graph - COMPLETELY REVISED                #
@@ -548,8 +558,8 @@ def decide_next(state: Dict[str, Any]) -> str:
     print(f"Decision point – iteration {iteration}, scores: {scores}")
     
     # 1. Check hard cap on cycles first - MOST IMPORTANT ESCAPE
-    if iteration >= state.get("max_cycles", 3):
-        print(f"🛑 Reached maximum cycles ({state.get('max_cycles', 5)}), ending execution.")
+    if iteration >= state.get("max_cycles", MAX_CYCLES):
+        print(f"🛑 Reached maximum cycles ({state.get('max_cycles', MAX_CYCLES)}), ending execution.")
         return END
     
     # 2. Check for empty scores - indicates initial run or error
@@ -591,7 +601,7 @@ def decide_next(state: Dict[str, Any]) -> str:
         print(f"🔄 Analysis needs improvement (iteration {iteration})")
         return "reflect"
 
-def build_graph(max_cycles: int = 3):
+def build_graph(max_cycles: int = MAX_CYCLES):
     """
     Build the analysis state graph with improved anti-recursion measures.
     
@@ -637,7 +647,7 @@ def build_graph(max_cycles: int = 3):
 ############################################################
 # 5. Create agent function - COMPLETELY REVISED            #
 ############################################################
-def run_domain_detector(csv_path: str, max_cycles: int = 5) -> Dict[str, Any]:
+def run_domain_detector(csv_path: str, max_cycles: int = MAX_CYCLES) -> Dict[str, Any]:
     """
     Run the data profiling agent on the specified CSV file with improved error handling.
     
@@ -681,6 +691,7 @@ def run_domain_detector(csv_path: str, max_cycles: int = 5) -> Dict[str, Any]:
         # Run the agent with timeout protection
         print(f"Starting analysis with max_cycles={max_cycles}")
         result = graph.invoke(initial_state)
+        print("result history",  result["history"])
         
         # Ensure we have at least minimal structure for return value
         if "analysis" not in result:

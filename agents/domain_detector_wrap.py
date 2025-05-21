@@ -141,7 +141,7 @@ EVAL_PROMPT = PromptTemplate(
         "• relevance   : do the concepts correspond to real columns / metrics present?\n"
         "• coverage    : do the concepts cover the major elements of the table?\n\n"
         "**Part B – Analysis JSON**\n"
-        "• insightfulness : does the analysis provide meaningful, actionable understanding (combines relevance, uniqueness, actionability)?\n"
+        "• insightfulness : does the analysis provide meaningful, actionable understanding?\n"
         "• novelty        : does it reveal non‑obvious or deeper patterns beyond simple column descriptions?\n\n"
         "Return a JSON response exactly in this format:\n"
         "{{ 'reason':<brief text>,\n  'scores': {{ 'correctness':#, 'relevance':#, 'coverage':#, 'insightfulness':#, 'novelty':# }},\n  'domain_ok': <bool correctness==4>,\n  'concepts_ok': <bool relevance>=3 and coverage>=3> }}"
@@ -172,7 +172,11 @@ def _extract_content(response):
     return str(response)
 
 def domain_node(state):
-    print("domain_node", state)
+    # print("domain_node", state)
+    state_copy = state.copy()
+    if 'profile' in state_copy:
+        del state_copy['profile']
+    print("domain_node state:", state_copy)
     """
     Determine the dataset's domain label.
     Inputs  : state["profile"], state["memory"]
@@ -228,7 +232,11 @@ def domain_node(state):
     }}
 
 def concept_node(state):
-    print("concept_node", state)
+    # print("concept_node", state)
+    state_copy = state.copy()
+    if 'profile' in state_copy:
+        del state_copy['profile']
+    print("concept_node state:", state_copy)
     """
     Generate 4-6 core concepts for the detected domain.
     Inputs : profile, domain_info, memory
@@ -264,7 +272,11 @@ def concept_node(state):
 
 
 def analysis_node(state):
-    print("analysis_node", state)
+    # print("analysis_node", state)
+    state_copy = state.copy()
+    if 'profile' in state_copy:
+        del state_copy['profile']
+    print("analysis_node state:", state_copy)
     """
     Produce descriptive / predictive / domain-related analysis paragraphs.
     Inputs : profile, domain_info, concepts, memory
@@ -309,7 +321,11 @@ def analysis_node(state):
 
 
 def eval_node(state):
-    print("eval_node", state)
+    # print("eval_node", state)
+    state_copy = state.copy()
+    if 'profile' in state_copy:
+        del state_copy['profile']
+    print("eval_node state:", state_copy)
     """
     Evaluation node: Evaluates quality of domain, concepts, and analysis.
     Input: State with all previous outputs
@@ -368,7 +384,7 @@ def eval_node(state):
         }
     
     history = state.get("history", [])
-    print("history before append", history)
+    # print("history before append", history)
 
     history.append({
         "iteration": state.get("iteration", 0),
@@ -381,7 +397,7 @@ def eval_node(state):
         )
     })
     state["history"] = history
-    print("history", state["iteration"], "*****", state["history"])
+    # print("history", state["iteration"], "*****", state["history"])
     
     return {**state, **{
         "profile": state["profile"],
@@ -398,7 +414,11 @@ def eval_node(state):
     }}
 
 def reflect_node(state):
-    print("reflect_node", state)
+    # print("reflect_node", state)
+    state_copy = state.copy()
+    if 'profile' in state_copy:
+        del state_copy['profile']
+    print("reflect_node state:", state_copy)
     """
     Reflection node: Generates improvement suggestions based on evaluation.
     Input: State with evaluation results

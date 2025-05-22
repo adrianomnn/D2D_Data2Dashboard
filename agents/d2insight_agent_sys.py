@@ -47,16 +47,50 @@ PROFILE_PROMPT = PromptTemplate(
         "--- RAW PREVIEW START ---\n"
         "{raw_preview}\n"
         "--- RAW PREVIEW END ---\n\n"
-        "**Think step by step**:\n"
-        "1. Count how many rows and columns.\n"
-        "2. List every column with an *inferred type* (numeric / categorical / datetime / text).\n"
-        "3. For each column give: • three example values  • min / max (if numeric) • detected unit symbol (currency, %, kWh, etc.).\n"
-        "4. Detect *functional dependencies* – e.g. if Revenue − Cost ≈ Profit.\n"
-        "5. Detect *hierarchical or time‑series structure*: quarter columns, year‑month fields, category → sub‑category columns.\n"
-        "6. Identify candidate *primary keys* (columns where all values are unique) and possible *foreign‑key* pairs.\n"
-        "7. Note any columns/rows that look like totals or subtotals.\n\n"
-        "After reasoning, output a JSON object with keys:\n"
-        "  rows, cols, columns (list with {{name, type, examples, unit, min, max}}),\n"
+        "**TREE OF THOUGHT ANALYSIS PROCESS**:\n"
+        "For each step below, think about multiple possible interpretations before selecting the most likely conclusion.\n\n"
+        "**STAGE 1: BASIC STRUCTURE**\n"
+        "- Count total rows and columns in the dataset\n"
+        "- For each column, determine the most likely data type:\n"
+        "  * Consider multiple possibilities (numeric? categorical? datetime? text?)\n"
+        "  * Choose the most appropriate type based on pattern analysis\n"
+        "  * IMPORTANT: If a column name contains 'id', 'ID', 'Id', 'identifier', or similar terms, classify it as categorical, NOT numeric, even if it contains only numbers\n"
+        "  * Assign final type: numeric, categorical, datetime, or text\n\n"
+        
+        "**STAGE 2: TYPE-SPECIFIC ANALYSIS**\n"
+        "- For numeric columns:\n"
+        "  * Calculate distribution statistics (min, 25%, median, 75%, max)\n"
+        "  * Identify possible units by examining patterns and contexts (currency, %, kWh, etc.)\n"
+        "  * Note any outliers or irregular distributions\n"
+        "- For categorical columns:\n" 
+        "  * Extract 3-5 representative categories\n"
+        "  * Evaluate if these categories appear exhaustive or partial\n"
+        "  * Consider hierarchical relationships between categories\n"
+        "- For datetime columns:\n"
+        "  * Determine range (earliest to latest)\n"
+        "  * Identify granularity (day/month/quarter/year)\n"
+        "  * Check for time-series patterns or irregularities\n"
+        "- For text columns:\n"
+        "  * Analyze content patterns and typical length\n"
+        "  * Summarize what information each text column likely represents\n\n"
+        
+        "**STAGE 3: RELATIONSHIP DISCOVERY**\n"
+        "- Functional dependencies:\n"
+        "  * Test multiple hypotheses about column relationships (e.g., Revenue - Cost ≈ Profit)\n"
+        "  * Verify the most promising relationships\n"
+        "- Structural patterns:\n"
+        "  * Identify hierarchical relationships (category → subcategory)\n"
+        "  * Detect time-series structure (year/quarter/month patterns)\n"
+        "  * Find related column groups\n"
+        "- Key identification:\n"
+        "  * Evaluate columns that could serve as primary keys (unique values)\n"
+        "  * Identify potential foreign-key relationships between columns\n"
+        "- Aggregation detection:\n"
+        "  * Examine rows/columns that may represent totals or subtotals\n"
+        "  * Check for summary statistics within the data itself\n\n"
+        
+        "After completing all three stages of reasoning, output a JSON object with keys:\n"
+        "  rows, cols, columns (list with {{\"name\": \"<column_name>\",\"type\": \"<numeric|categorical|datetime|text>\", \"examples\": [\"<ex1>\", \"<ex2>\", ...],\"unit\": \"<currency|%|kWh|none>\", \"min\": \"<number or earliest-date or n/a>\", \"max\": \"<number or latest-date or n/a>\"}},\n"
         "  formulas (list of strings),\n"
         "  hierarchy (free text),\n"
         "  time_series (true/false),\n"
@@ -126,7 +160,7 @@ ANALYSIS_PROMPT = PromptTemplate(
         "{memory}\n"
         "Produce a JSON response exactly in this shape:\n"
         "{{ 'domain': <string>, 'core_concepts': [...], 'analysis': {{ 'descriptive':<paragraph>, 'predictive':<paragraph>, 'domain_related':<paragraph> }} }}\n"
-        "Ensure strong **insightfulness** and **novelty**—surface hidden patterns, non‑obvious relationships, or actionable hypotheses."
+        "You are \"InsightWriter-Advanced\", a principled business analyst in any domain (the sharpest one with the highest paid in the world) who turns raw tabular data into SHORT, HIGH-VALUE insights in any domain. Every insight you write is a masterpiece, with perfect sense of using BUSINESS-LENS TAXONOMY(Trend,Variance,Benchmark,Efficiency, and others you can find in the internet), BUSINESS FRAMEWORK(SWOT, PESTEL, 5 Forces, Value Chain,and others you can find in the internet) to support your insights."
     )
 )
 analysis_chain = ANALYSIS_PROMPT | llm
@@ -141,10 +175,11 @@ EVAL_PROMPT = PromptTemplate(
         "• relevance   : do the concepts correspond to real columns / metrics present?\n"
         "• coverage    : do the concepts cover the major elements of the table?\n\n"
         "**Part B – Analysis JSON**\n"
-        "• insightfulness : does the analysis provide meaningful, actionable understanding?\n"
-        "• novelty        : does it reveal non‑obvious or deeper patterns beyond simple column descriptions?\n\n"
+        "• insightfulness : does the analysis provide meaningful, actionable understanding in terms of practical usefulness?\n"
+        "• novelty        : does it reveal non‑obvious or surprise factor beyond simple column descriptions?\n\n"
+        "• depth          : does the analysis drill into root causes, cross-variable interactions, and quantified impact (vs. surface-level facts)?\n\n"
         "Return a JSON response exactly in this format:\n"
-        "{{ 'reason':<brief text>,\n  'scores': {{ 'correctness':#, 'relevance':#, 'coverage':#, 'insightfulness':#, 'novelty':# }},\n  'domain_ok': <bool correctness==4>,\n  'concepts_ok': <bool relevance>=3 and coverage>=3> }}"
+        "{{ 'reason':<brief text>,\n  'scores': {{ 'correctness':#, 'relevance':#, 'coverage':#, 'insightfulness':#, 'novelty':# , 'depth':# }},\n  'domain_ok': <bool correctness==4>,\n  'concepts_ok': <bool relevance>=3 and coverage>=3> }}"
     )
 )
 eval_chain = EVAL_PROMPT | llm
@@ -154,8 +189,9 @@ REFLECT_PROMPT = PromptTemplate(
     template=(
         "Evaluation JSON: {evaluation}\n"
         "{memory}\n"
-        "For every dimension with score ≤3, write ONE bullet‑point self‑critique:\n"
-        "  – state what was missing or wrong, and how to improve (e.g. 'Consider column YYYY …').\n"
+        "For every dimension with score ≤3, deliver ONE *piercing* bullet of self-critique:\n"
+        "  – call out exactly what is weak or missing, then specify a concrete fix (e.g. 'Consider column YYYY …').\n"
+        "NO praise, NO hedging—be blunt.\n"
         "Return ≤5 bullets only, in a valid JSON list format."
     )
 )
@@ -172,7 +208,7 @@ def _extract_content(response):
     return str(response)
 
 def domain_node(state):
-    # print("domain_node", state)
+    print("domain_node", state)
     state_copy = state.copy()
     if 'profile' in state_copy:
         del state_copy['profile']
@@ -232,7 +268,7 @@ def domain_node(state):
     }}
 
 def concept_node(state):
-    # print("concept_node", state)
+    print("concept_node", state)
     state_copy = state.copy()
     if 'profile' in state_copy:
         del state_copy['profile']
@@ -262,17 +298,21 @@ def concept_node(state):
         print("Warning: concept_node received invalid JSON; defaulting to []")
         concepts = []
 
+    # Preserve domain_fixed flag
+    domain_fixed = state.get("domain_fixed", False)
+
     return {**state, **{
         "profile"    : state["profile"],
         "domain_info": state["domain_info"],
         "concepts"   : concepts,
         "memory"     : state.get("memory", "[]"),
-        "iteration"  : state.get("iteration", 0)
+        "iteration"  : state.get("iteration", 0),
+        "domain_fixed": domain_fixed  # Explicitly preserve domain_fixed
     }}
 
 
 def analysis_node(state):
-    # print("analysis_node", state)
+    print("analysis_node", state)
     state_copy = state.copy()
     if 'profile' in state_copy:
         del state_copy['profile']
@@ -310,18 +350,22 @@ def analysis_node(state):
             }
         }
 
+    # Preserve domain_fixed flag
+    domain_fixed = state.get("domain_fixed", False)
+
     return {**state, **{
         "profile"    : state["profile"],
         "domain_info": state["domain_info"],
         "concepts"   : state["concepts"],
         "analysis"   : analysis,
         "memory"     : state.get("memory", "[]"),
-        "iteration"  : state.get("iteration", 0)
+        "iteration"  : state.get("iteration", 0),
+        "domain_fixed": domain_fixed  # Explicitly preserve domain_fixed
     }}
 
 
 def eval_node(state):
-    # print("eval_node", state)
+    print("eval_node", state)
     state_copy = state.copy()
     if 'profile' in state_copy:
         del state_copy['profile']
@@ -377,7 +421,8 @@ def eval_node(state):
                 "relevance": 2,
                 "coverage": 2,
                 "insightfulness": 2,
-                "novelty": 2
+                "novelty": 2,
+                "depth": 2
             },
             "domain_ok": False,
             "concepts_ok": False
@@ -399,6 +444,12 @@ def eval_node(state):
     state["history"] = history
     # print("history", state["iteration"], "*****", state["history"])
     
+    # Preserve domain_fixed flag and update it if domain_ok is True
+    domain_fixed = state.get("domain_fixed", False)
+    if ev["domain_ok"]:
+        domain_fixed = True
+        print("🔒 Domain fixed in eval_node due to domain_ok=True")
+    
     return {**state, **{
         "profile": state["profile"],
         "domain_info": state["domain_info"],
@@ -410,11 +461,12 @@ def eval_node(state):
         "concepts_ok": ev["concepts_ok"],
         "memory": state.get("memory", "None"),
         "history": state["history"],
-        "iteration": state.get("iteration", 0)
+        "iteration": state.get("iteration", 0),
+        "domain_fixed": domain_fixed  # Explicitly preserve and update domain_fixed
     }}
 
 def reflect_node(state):
-    # print("reflect_node", state)
+    print("reflect_node", state)
     state_copy = state.copy()
     if 'profile' in state_copy:
         del state_copy['profile']
@@ -460,7 +512,7 @@ def reflect_node(state):
         needs_reflection.append("domain")
     if scores.get("relevance", 0) < 4 or scores.get("coverage", 0) < 4:
         needs_reflection.append("concepts")
-    if scores.get("insightfulness", 0) < 4 or scores.get("novelty", 0) < 4:
+    if scores.get("insightfulness", 0) < 4 or scores.get("novelty", 0) < 4 or scores.get("depth", 0) < 4:
         needs_reflection.append("analysis")
     
     # Only reflect if there are aspects that need improvement
@@ -509,6 +561,13 @@ def reflect_node(state):
     # Format memory for next iteration
     formatted_memory = json.dumps(combined_reflections)
     
+    # Preserve domain_fixed flag explicitly
+    domain_fixed = state.get("domain_fixed", False)
+    # If domain has a correctness score of 4, ensure it's fixed
+    if state.get("scores", {}).get("correctness", 0) >= 4:
+        domain_fixed = True
+        print("🔒 Domain fixed due to correctness score >= 4")
+    
     return {**state, **{
         "profile": state["profile"],
         "domain_info": state["domain_info"],
@@ -519,7 +578,8 @@ def reflect_node(state):
         "domain_ok": state["domain_ok"],
         "concepts_ok": state["concepts_ok"],
         "memory": formatted_memory,
-        "iteration": iteration
+        "iteration": iteration,
+        "domain_fixed": domain_fixed  # Explicitly include domain_fixed in returned state
     }}
 
 ############################################################
@@ -550,7 +610,8 @@ def success(scores: Dict[str, int]) -> bool:
     # Analysis metrics
     analysis_metrics = {
         'insightfulness': scores.get('insightfulness', 0),
-        'novelty': scores.get('novelty', 0)
+        'novelty': scores.get('novelty', 0),
+        'depth': scores.get('depth', 0)
     }
     
     # Domain and concept success criteria - RELAXED FURTHER
@@ -563,7 +624,8 @@ def success(scores: Dict[str, int]) -> bool:
     # Analysis success criteria
     analysis_success = (
         analysis_metrics['insightfulness'] >= 4 and  # Must provide meaningful insights
-        analysis_metrics['novelty'] >= 4             # Must reveal non-obvious patterns
+        analysis_metrics['novelty'] >= 3 and         # Must reveal non-obvious patterns
+        analysis_metrics['depth'] >= 4               # Must reveal deeper patterns
     )
     
     return domain_concept_success and analysis_success
@@ -610,6 +672,10 @@ def decide_next(state: Dict[str, Any]) -> str:
     # 5. Route based on what needs improvement
     domain_ok = state.get("domain_ok", False)
     concepts_ok = state.get("concepts_ok", False)
+    
+    # If domain is ok, mark it as fixed to prevent further domain iterations
+    if domain_ok:
+        state["domain_fixed"] = True
     
     if not domain_ok:
         print(f"🔄 Domain needs improvement (iteration {iteration})")

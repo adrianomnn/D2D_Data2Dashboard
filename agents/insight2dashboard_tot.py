@@ -43,40 +43,48 @@ import pandas as pd
 # ╰──────────────────────────────────────────────────────────────╯
 
 TOT_BLOCK = """
-### Insight to Visualise
+### Insight to Visualise and Interpret
 {INSIGHT_TEXT}
 
 ### Three‑Expert Tree of Thought
 
-**Step I – Identify**  
-Each expert independently lists dataframe columns they think support the insight.  
-Return lines like:
+**Step I – Extract Key Domain Findings**  
+Experts identify the core domain insights that need visual representation:  
 ```
-Expert 1: ['colA', 'colB']
-Expert 2: ['colB', 'colC']
-Expert 3: ['colA', 'colC']
+Expert 1: [Domain finding 1]
+Expert 2: [Domain finding 2]
+Expert 3: [Domain finding 3]
 ```
 
-**Step II – Evaluate**  
+**Step II – Identify Relevant Data**  
+Each expert independently lists dataframe columns they think support the insight.  
+```
+Expert 1: ['colA', 'colB', 'colC-B']
+Expert 2: ['colB', 'colC']
+Expert 3: ['colA', 'colC', 'colD+C', 'colE/A', 'colF-B']
+```
+
+**Step III – Evaluate Data Selection**  
 Experts compare lists and agree on the minimal set.  
-Return exactly one line:
 ```
 Agreed columns: ['colA', 'colB']
 ```
 
-**Step III – Visualise**  
-Each expert proposes a chart type (≤25‑word rationale):
+**Step IV – Visualise with Domain Context**  
+Each expert proposes a chart type and explains how it highlights domain insights:
 ```
-Expert 1: Bar …
-Expert 2: Box …
-Expert 3: Stacked bar …
+Expert 1: Bar chart - Shows investment preference patterns while highlighting the shift toward digital platforms
+Expert 2: Trend line - Visualizes age-based patterns, supporting the prediction about retirement planning shifts
+Expert 3: Stacked bar - Reveals demographic segments' behavior, illuminating the financial literacy variations
 ```
 
 **Consolidation**  
-Output one final decision:
+Output final decisions:
 ```
-Final chart: Stacked bar
-Reason: …
+Final chart: [chart type]
+Reason: [visualization rationale]
+Key insight narrative: [1-2 sentences explaining what domain insight this visualization helps reveal]
+Recommended annotation: [Specific callout/annotation that should be added to highlight the domain insight]
 ```
 """
 
@@ -101,13 +109,26 @@ Return **exactly two fenced blocks** in order and nothing else:
 1️⃣ Thoughts block (label it ```thoughts) – include your full reasoning.
 
 2️⃣ Python block (label it ```python) – write a script that:
-   • imports pandas as pd, matplotlib.pyplot as plt, Path
+   • imports pandas as pd, matplotlib.pyplot as plt, numpy as np, Path
    • reads dataset via CSV_PATH (already defined)
-   • implements each **Final chart** decision; wrap every plot in
-     try/except (KeyError, ValueError, TypeError) and `print()` a warning
-     if skipped.
+   • implements each **Final chart** decision
+   • includes comments explaining the domain insights for each visualization
+   • adds appropriate titles, labels, and annotations that highlight the key insights
+   • wraps every plot in try/except (KeyError, ValueError, TypeError) and `print()` a warning
+     if skipped
    • calls plt.tight_layout(); show() or save to figures/
    • uses **only** columns listed in CSV_SCHEMA.
+
+   Visualization Best Practices:
+   • For legends: Always use clear, descriptive legend titles and place them optimally (usually upper right or outside)
+   • For color selection: Use colorblind-friendly palettes (viridis, plasma, cividis) or plt.cm.Paired
+   • For multiple series: When plotting multiple data series, either:
+     - Use plt.subplots to create separate plots, or
+     - Use proper stacking techniques with stacked=True parameter
+     - Avoid overwriting plots on the same axes unless showing direct comparisons
+   • For pie charts: Use plt.axis('equal') to ensure proper circular appearance
+   • For data preparation: Use pandas aggregation (crosstab, pivot_table) before plotting
+   • For formatting: Set appropriate fontsize for title (14), labels (12), and tick labels (10)
 """
 
 # ╭──────────────────────────────────────────────────────────────╮
@@ -117,7 +138,20 @@ Return **exactly two fenced blocks** in order and nothing else:
 def _chat_and_extract(*, prompt: str, model: str, temperature: float) -> Tuple[str, str]:
     """Return (thoughts, python_code) from one chat completion."""
 
-    system_msg = "Answer with two fenced blocks: first ```thoughts, then ```python, nothing else."
+    system_msg = """Answer with two fenced blocks: first ```thoughts, then ```python, nothing else.
+
+When analyzing data, prioritize preserving domain expertise and insights in your visualizations:
+1. Make visualizations that illuminate the domain context, not just show the data
+2. Include annotations that highlight key domain insights
+3. Use titles and comments that emphasize the domain-specific findings
+4. Ensure the narrative in your thoughts connects the visualizations to the original domain insights
+
+Visualization Best Practices:
+- Legends should be clear, descriptive, and properly positioned
+- Use appropriate color schemes (colorblind-friendly)
+- When plotting multiple data series, use proper techniques to avoid overwriting
+- Prepare data properly before visualization (aggregation, transformation)
+- Include appropriate sizing and formatting for all visual elements"""
 
     rsp = openai.chat.completions.create(
         model=model,
@@ -147,10 +181,21 @@ def generate_analysis(
     temperature: float = 0.2,
     run_code: bool = True,
     save_dir: str | Path = ".",
+    preserve_domain_insights: bool = True,
 ) -> str:
     """Generate Tree‑of‑Thought rationale and plotting script.
 
-    Returns the *thoughts* markdown string.
+    Args:
+        csv_path: Path to the dataset CSV file
+        insight_json_path: Path to the insight library JSON file
+        model: OpenAI model to use (default: gpt-4o)
+        temperature: Sampling temperature (default: 0.2)
+        run_code: Whether to execute the generated code (default: True)
+        save_dir: Directory to save output files (default: current directory)
+        preserve_domain_insights: Whether to emphasize preserving domain insights (default: True)
+
+    Returns:
+        The *thoughts* markdown string.
     """
 
     csv_path = Path(csv_path).expanduser().resolve()
@@ -176,6 +221,15 @@ def generate_analysis(
         insights_obj.get("predictive", ""),
         insights_obj.get("domain_related", ""),
     ]
+    
+    # Add emphasis on domain insights if requested
+    if preserve_domain_insights and insights_obj.get("domain_related"):
+        system_guidance = """IMPORTANT: The domain_related insights contain critical context that MUST be preserved 
+and highlighted in your visualizations. Do not reduce the analysis to just chart selection - 
+ensure the domain expertise is reflected in annotations, titles, and the narrative."""
+    else:
+        system_guidance = ""
+
     tot_blocks = "\n\n".join(
         TOT_BLOCK.replace("{INSIGHT_TEXT}", txt.strip() or "(missing)")
         for txt in insight_texts if txt.strip()
@@ -186,6 +240,9 @@ def generate_analysis(
         schema_table=schema_table,
         TOT_BLOCKS=tot_blocks,
     )
+    
+    if preserve_domain_insights:
+        prompt = system_guidance + "\n\n" + prompt
 
     # ── OpenAI auth ────────────────────────────────────────────
     load_dotenv()

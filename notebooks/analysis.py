@@ -6,80 +6,89 @@ CSV_PATH = Path(r"/Users/zhangran/Desktop/BP@UnitedStates/Code/D2D_Data2Dashboar
 
 import pandas as pd
 import matplotlib.pyplot as plt
+import numpy as np
 from pathlib import Path
 
 # Load the dataset
-CSV_PATH = CSV_PATH
+CSV_PATH = 'path/to/your/dataset.csv'
 df = pd.read_csv(CSV_PATH)
 
-# Create figures directory if it doesn't exist
+# Ensure the directory for saving figures exists
 Path("figures").mkdir(parents=True, exist_ok=True)
 
-# Plotting functions
-def plot_age_distribution(df):
-    try:
-        plt.figure()
-        df['age'].plot(kind='hist', bins=range(20, 40, 2), color='skyblue', edgecolor='black')
-        plt.title('Age Distribution')
-        plt.xlabel('Age')
-        plt.ylabel('Frequency')
-        plt.tight_layout()
-        plt.savefig('figures/age_distribution.png')
-    except (KeyError, ValueError, TypeError) as e:
-        print(f"Warning: Could not plot age distribution due to {e}")
+# 1. Investment Preferences by Gender
+try:
+    investment_cols = ['Mutual_Funds', 'Equity_Market', 'Debentures', 'Government_Bonds', 'Fixed_Deposits', 'PPF', 'Gold']
+    gender_investment = df.groupby('gender')[investment_cols].mean()
+    gender_investment.plot(kind='bar', stacked=True, colormap='viridis')
+    plt.title('Investment Preferences by Gender', fontsize=14)
+    plt.xlabel('Gender', fontsize=12)
+    plt.ylabel('Average Investment Level', fontsize=12)
+    plt.legend(title='Investment Avenues', bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.tight_layout()
+    plt.savefig('figures/investment_preferences_by_gender.png')
+    plt.show()
+except (KeyError, ValueError, TypeError) as e:
+    print(f"Warning: Skipped Investment Preferences by Gender due to {e}")
 
-def plot_gender_distribution(df):
-    try:
-        plt.figure()
-        df['gender'].value_counts().plot(kind='pie', autopct='%1.1f%%', startangle=90, colors=['lightcoral', 'lightskyblue'])
-        plt.title('Gender Distribution')
-        plt.ylabel('')
-        plt.tight_layout()
-        plt.savefig('figures/gender_distribution.png')
-    except (KeyError, ValueError, TypeError) as e:
-        print(f"Warning: Could not plot gender distribution due to {e}")
+# 2. Age Distribution and Investment Choices
+try:
+    df['Investment_Avenue'] = df[investment_cols].idxmax(axis=1)
+    plt.figure(figsize=(10, 6))
+    df.boxplot(column='age', by='Investment_Avenue', grid=False)
+    plt.title('Age Distribution by Investment Avenue', fontsize=14)
+    plt.suptitle('')
+    plt.xlabel('Investment Avenue', fontsize=12)
+    plt.ylabel('Age', fontsize=12)
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    plt.savefig('figures/age_distribution_by_investment.png')
+    plt.show()
+except (KeyError, ValueError, TypeError) as e:
+    print(f"Warning: Skipped Age Distribution by Investment Choices due to {e}")
 
-def plot_investment_preferences(df):
-    try:
-        plt.figure()
-        investment_cols = ['Mutual_Funds', 'Equity_Market', 'Debentures', 'Government_Bonds', 'Fixed_Deposits', 'PPF', 'Gold']
-        df[investment_cols].mean().plot(kind='bar', color='lightgreen')
-        plt.title('Average Investment in Different Avenues')
-        plt.xlabel('Investment Avenue')
-        plt.ylabel('Average Investment')
-        plt.tight_layout()
-        plt.savefig('figures/investment_preferences.png')
-    except (KeyError, ValueError, TypeError) as e:
-        print(f"Warning: Could not plot investment preferences due to {e}")
+# 3. Investment Monitoring Frequency
+try:
+    invest_monitor_counts = df['Invest_Monitor'].value_counts()
+    invest_monitor_counts.plot(kind='pie', autopct='%1.1f%%', colormap='plasma')
+    plt.title('Investment Monitoring Frequency', fontsize=14)
+    plt.ylabel('')
+    plt.axis('equal')
+    plt.tight_layout()
+    plt.savefig('figures/investment_monitoring_frequency.png')
+    plt.show()
+except (KeyError, ValueError, TypeError) as e:
+    print(f"Warning: Skipped Investment Monitoring Frequency due to {e}")
 
-def plot_investment_monitoring(df):
-    try:
-        plt.figure()
-        df['Invest_Monitor'].value_counts().plot(kind='bar', color='lightblue')
-        plt.title('Investment Monitoring Frequency')
-        plt.xlabel('Frequency')
-        plt.ylabel('Count')
-        plt.tight_layout()
-        plt.savefig('figures/investment_monitoring.png')
-    except (KeyError, ValueError, TypeError) as e:
-        print(f"Warning: Could not plot investment monitoring frequency due to {e}")
+# 4. Savings Objectives and Investment Avenues
+try:
+    savings_investment = pd.crosstab(df['What are your savings objectives?'], df['Avenue'])
+    plt.figure(figsize=(10, 6))
+    plt.imshow(savings_investment, cmap='cividis', aspect='auto')
+    plt.colorbar(label='Count')
+    plt.title('Savings Objectives vs. Investment Avenues', fontsize=14)
+    plt.xlabel('Investment Avenue', fontsize=12)
+    plt.ylabel('Savings Objective', fontsize=12)
+    plt.xticks(ticks=np.arange(len(savings_investment.columns)), labels=savings_investment.columns, rotation=45)
+    plt.yticks(ticks=np.arange(len(savings_investment.index)), labels=savings_investment.index)
+    plt.tight_layout()
+    plt.savefig('figures/savings_objectives_vs_investment_avenues.png')
+    plt.show()
+except (KeyError, ValueError, TypeError) as e:
+    print(f"Warning: Skipped Savings Objectives vs. Investment Avenues due to {e}")
 
-def plot_expected_returns(df):
-    try:
-        plt.figure()
-        df['Expect'].value_counts().plot(kind='pie', autopct='%1.1f%%', startangle=90, colors=['gold', 'lightcoral', 'lightskyblue'])
-        plt.title('Expected Returns')
-        plt.ylabel('')
-        plt.tight_layout()
-        plt.savefig('figures/expected_returns.png')
-    except (KeyError, ValueError, TypeError) as e:
-        print(f"Warning: Could not plot expected returns due to {e}")
-
-# Execute plotting functions
-plot_age_distribution(df)
-plot_gender_distribution(df)
-plot_investment_preferences(df)
-plot_investment_monitoring(df)
-plot_expected_returns(df)
-
-plt.show()
+# 5. Expected Returns and Investment Preferences
+try:
+    plt.figure(figsize=(10, 6))
+    for avenue in df['Avenue'].unique():
+        subset = df[df['Avenue'] == avenue]
+        plt.scatter(subset['Expect'], subset[investment_cols].sum(axis=1), label=avenue, alpha=0.7)
+    plt.title('Expected Returns vs. Investment Preferences', fontsize=14)
+    plt.xlabel('Expected Returns', fontsize=12)
+    plt.ylabel('Total Investment Level', fontsize=12)
+    plt.legend(title='Investment Avenue', bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.tight_layout()
+    plt.savefig('figures/expected_returns_vs_investment_preferences.png')
+    plt.show()
+except (KeyError, ValueError, TypeError) as e:
+    print(f"Warning: Skipped Expected Returns vs. Investment Preferences due to {e}")

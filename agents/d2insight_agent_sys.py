@@ -375,6 +375,12 @@ def eval_node(state):
     Input: State with all previous outputs
     Output: State with evaluation results
     """
+    # Preserve domain and concept status if domain is fixed
+    domain_fixed = state.get("domain_fixed", False)
+    previous_domain_ok = state.get("domain_ok", False)
+    previous_concepts_ok = state.get("concepts_ok", False)
+    previous_scores = state.get("scores", {})
+    
     try:
         # Ensure all inputs are properly serialized
         domain_info = state["domain_info"]
@@ -412,21 +418,53 @@ def eval_node(state):
             if key not in ev:
                 raise ValueError(f"Missing required key in evaluation: {key}")
         
+        # If domain is fixed, preserve previous domain and concept evaluations
+        if domain_fixed:
+            ev["domain_ok"] = previous_domain_ok
+            ev["concepts_ok"] = previous_concepts_ok
+            # Preserve domain-related scores
+            if previous_scores:
+                ev["scores"]["correctness"] = previous_scores.get("correctness", ev["scores"]["correctness"])
+                ev["scores"]["relevance"] = previous_scores.get("relevance", ev["scores"]["relevance"])
+                ev["scores"]["coverage"] = previous_scores.get("coverage", ev["scores"]["coverage"])
+        
     except (json.JSONDecodeError, ValueError) as e:
         print(f"Warning: Error in eval_node: {str(e)}")
-        ev = {
-            "reason": "Evaluation failed",
-            "scores": {
-                "correctness": 2,
-                "relevance": 2,
-                "coverage": 2,
-                "insightfulness": 2,
-                "novelty": 2,
-                "depth": 2
-            },
-            "domain_ok": False,
-            "concepts_ok": False
+        
+        # Default scores
+        default_scores = {
+            "correctness": 2,
+            "relevance": 2,
+            "coverage": 2,
+            "insightfulness": 2,
+            "novelty": 2,
+            "depth": 2
         }
+        
+        # If domain is fixed, preserve previous evaluations even in error case
+        if domain_fixed:
+            ev = {
+                "reason": "Evaluation partially failed, preserving previous domain/concept evaluation",
+                "scores": {
+                    # Preserve domain scores from previous evaluation
+                    "correctness": previous_scores.get("correctness", default_scores["correctness"]),
+                    "relevance": previous_scores.get("relevance", default_scores["relevance"]),
+                    "coverage": previous_scores.get("coverage", default_scores["coverage"]),
+                    # Use default for analysis scores
+                    "insightfulness": default_scores["insightfulness"],
+                    "novelty": default_scores["novelty"],
+                    "depth": default_scores["depth"]
+                },
+                "domain_ok": previous_domain_ok,
+                "concepts_ok": previous_concepts_ok
+            }
+        else:
+            ev = {
+                "reason": "Evaluation failed",
+                "scores": default_scores,
+                "domain_ok": False,
+                "concepts_ok": False
+            }
     
     history = state.get("history", [])
     # print("history before append", history)

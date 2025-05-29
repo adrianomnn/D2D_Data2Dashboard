@@ -290,6 +290,14 @@ CSV_PATH = Path(r"{csv_path}")
         code_fixed,
         flags=re.I,
     )
+    
+    # Handle direct assignment to CSV_PATH with a hardcoded path
+    code_fixed = re.sub(
+        r"CSV_PATH\s*=\s*['\"].*?(\.csv|\.CSV|path/to/your/dataset\.csv)['\"]",
+        "# CSV_PATH is defined above",
+        code_fixed,
+        flags=re.I,
+    )
 
     # Create a figures directory if any plots will be saved there
     figures_dir = save_dir / "figures"

@@ -57,8 +57,8 @@
         "average_per_customer": 1
       },
       "advanced_contracts": {
-        "total": 12,
-        "average_per_customer": 0.8
+        "total": 13,
+        "average_per_customer": 0.87
       }
     },
     "revenue_analysis": {
@@ -68,18 +68,19 @@
       "advanced_revenue": 346000
     },
     "expected_clv_analysis": {
-      "total_expected_clv": 18000000,
-      "average_expected_clv_per_customer": 1200000
+      "total_expected_clv": 16687462,
+      "average_expected_clv_per_customer": 1112497.47
     }
   },
   "observations": {
     "customer_retention": "The majority of customers have terminated their contracts, with only one current customer remaining.",
     "acquisition_preference": "Most customers were acquired through external channels.",
-    "sector_focus": "All customers belong to the aerospace sector, indicating a specialized focus.",
-    "regional_focus": "The customer base is fairly distributed across different regions, with a slight concentration in the Northeast.",
-    "company_age": "A significant portion of the companies are relatively new (0-5 years old).",
-    "contract_type": "There is a balanced distribution between maker and advanced contracts, with a slight preference for maker contracts.",
-    "revenue_distribution": "Revenue is almost evenly split between maker and advanced contracts, with a slight edge towards advanced revenue.",
-    "clv_expectation": "The expected customer lifetime value is high, suggesting that the company anticipates significant future revenue from its customers."
+    "sector_focus": "All customers belong to the aerospace sector.",
+    "regional_focus": "The Northeast region has the highest number of customers.",
+    "company_age": "A significant portion of customers are relatively new companies (0-5 years).",
+    "size_preference": "Small-sized companies form the majority of the customer base.",
+    "contract_type": "Maker contracts are slightly more common than advanced contracts.",
+    "revenue_distribution": "Revenue is fairly evenly split between maker and advanced contracts.",
+    "clv_variability": "There is a wide range in expected CLV, indicating variability in customer value."
   }
 }

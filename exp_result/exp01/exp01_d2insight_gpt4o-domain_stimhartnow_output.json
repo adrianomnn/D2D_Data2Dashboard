@@ -1,0 +1,52 @@
+{
+  "domain": "Customer Relationship Management (CRM) in Aerospace Sector",
+  "insights": {
+    "Customer Retention": {
+      "Current Customers": 1,
+      "Former Customers": 14,
+      "Retention Rate": "6.67%",
+      "Insight": "The dataset shows a low retention rate, with only one current customer out of 15 total entries. This suggests potential issues in customer retention strategies or market conditions affecting customer loyalty."
+    },
+    "Acquisition Channels": {
+      "External": 12,
+      "Internal": 3,
+      "Insight": "The majority of customers were acquired through external channels, indicating a reliance on external marketing or partnerships for customer acquisition. Internal channels are less utilized, which could be an area for growth."
+    },
+    "Customer Segmentation": {
+      "Sector": "Aerospace",
+      "Region Distribution": {
+        "Northeast": 5,
+        "Southeast": 3,
+        "Midwest": 4,
+        "West": 3
+      },
+      "Company Age Distribution": {
+        "0-5yrs": 8,
+        "6-10yrs": 4,
+        "10+yrs": 3
+      },
+      "Size Distribution": {
+        "Small": 9,
+        "Medium": 5,
+        "Large": 1
+      },
+      "Insight": "The dataset is focused on the aerospace sector, with a diverse regional distribution. Most companies are relatively young (0-5 years) and small in size, indicating a market with emerging businesses."
+    },
+    "Revenue Analysis": {
+      "Total Revenue": 682,
+      "Average Revenue per Customer": 45466.67,
+      "Maker Revenue": 315000,
+      "Advanced Revenue": 367000,
+      "Insight": "The revenue is fairly balanced between Maker and Advanced contracts, with a slight edge towards Advanced contracts. This suggests a potential focus on more complex or high-value offerings."
+    },
+    "Customer Lifetime Value (CLV)": {
+      "Average CLV": 110,
+      "Insight": "The expected CLV varies significantly, with some customers having very high expected values. This indicates that while many customers may not be retained, those that are have the potential for high value."
+    },
+    "Premium Customers": {
+      "Premium": 1,
+      "Non-Premium": 14,
+      "Insight": "Only one customer is marked as premium, suggesting that the premium offering is either not well-promoted or not attractive to the majority of the customer base."
+    }
+  }
+}
